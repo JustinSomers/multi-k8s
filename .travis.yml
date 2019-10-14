@@ -1,6 +1,10 @@
 sudo: required
 services:
   -  docker
+env:
+  global:
+      - SHA=$(git rev-parse HEAD)
+      - CLOUDSK_CORE_DISABLE_PROMPTS=1
 before_install:
   # downlaod and install google cloud sdk
   - openssl aes-256-cbc -K $encrypted_0c35eebf403c_key -iv $encrypted_0c35eebf403c_iv -in service-account.json.enc -out service-account.json -d
@@ -8,3 +12,20 @@ before_install:
   - source $HOME/google-cloud-sdk/path.bash.inc
   - gcloud components update kubectl #installs and updates kubectl inside our travis CI env
   - gcloud auth activate-service-account --key-file service-account.json
+  - gcloud config set project multi-k8s-255619 # set the project to the google cloud project id
+  - gcloud config set compute/zone us-central1-a #configure google cloud compute zone (aka the location)
+  - gcloud container clusters get-credentials multi-cluster #set the cluster to use
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin #we have access to docker, as we
+  # specified it as a service in this yaml file
+  # NOTE: need to env variables to travis ci -> build -> more options -> env variables
+
+  # build the development version to install dev test dependencies
+  - docker build -t justinsomers/docker-react -f ./client/Dockerfile.dev ./client
+script:
+- docker run -e CI=true justin-somers/docker-react npm run test
+
+deploy:
+  provider: script #tell travis not to do anything with out project - just run the script for us
+  script: bash ./deploy.sh #our custom script file - deploy.sh
+  on:
+    branch: master # only deploy when master branch has been ran
